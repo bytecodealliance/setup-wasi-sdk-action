@@ -1,4 +1,4 @@
-# This workflow demonstrates how to use the `install-wasi-sdk` action from CMake projects. The WASI
+# This workflow demonstrates how to use the `setup-wasi-sdk` action from CMake projects. The WASI
 # SDK comes bundled with a `*.cmake` file that makes this relatively easy.
 
 name: CMake-compatible

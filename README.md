@@ -1,9 +1,9 @@
-# `install-wasi-sdk-action`
+# `setup-wasi-sdk-action`
 
-[![Cross-platform](https://github.com/bytecodealliance/install-wasi-sdk-action/actions/workflows/cross-platform.yml/badge.svg?branch=main)](https://github.com/bytecodealliance/install-wasi-sdk-action/actions/workflows/cross-platform.yml)
-[![CMake-compatible](https://github.com/bytecodealliance/install-wasi-sdk-action/actions/workflows/cmake.yml/badge.svg?branch=main)](https://github.com/bytecodealliance/install-wasi-sdk-action/actions/workflows/cmake.yml)
-[![Environment-safe](https://github.com/bytecodealliance/install-wasi-sdk-action/actions/workflows/env-safe.yml/badge.svg?branch=main)](https://github.com/bytecodealliance/install-wasi-sdk-action/actions/workflows/env-safe.yml)
-[![Unit tests](https://github.com/bytecodealliance/install-wasi-sdk-action/actions/workflows/unit-tests.yml/badge.svg?branch=main)](https://github.com/bytecodealliance/install-wasi-sdk-action/actions/workflows/unit-tests.yml)
+[![Cross-platform](https://github.com/bytecodealliance/setup-wasi-sdk-action/actions/workflows/cross-platform.yml/badge.svg?branch=main)](https://github.com/bytecodealliance/setup-wasi-sdk-action/actions/workflows/cross-platform.yml)
+[![CMake-compatible](https://github.com/bytecodealliance/setup-wasi-sdk-action/actions/workflows/cmake.yml/badge.svg?branch=main)](https://github.com/bytecodealliance/setup-wasi-sdk-action/actions/workflows/cmake.yml)
+[![Environment-safe](https://github.com/bytecodealliance/setup-wasi-sdk-action/actions/workflows/env-safe.yml/badge.svg?branch=main)](https://github.com/bytecodealliance/setup-wasi-sdk-action/actions/workflows/env-safe.yml)
+[![Unit tests](https://github.com/bytecodealliance/setup-wasi-sdk-action/actions/workflows/unit-tests.yml/badge.svg?branch=main)](https://github.com/bytecodealliance/setup-wasi-sdk-action/actions/workflows/unit-tests.yml)
 
 This GitHub Action will install the [WASI SDK] toolchain for compiling to WebAssembly on a GitHub
 runner:
@@ -19,7 +19,7 @@ runner:
 ### Usage
 
 ```yaml
-- uses: bytecodealliance/install-wasi-sdk-action@v1
+- uses: bytecodealliance/setup-wasi-sdk-action@v1
 # Now, use `clang` or `$CC` to compile C/C++ to WebAssembly:
 - run: $CC hello.c -o hello.wasm
 ```
@@ -64,7 +64,7 @@ When `add-to-path` is `true`, the action adds the WASI SDK `bin` directory to th
 
 This action should be usable on all GitHub runners; open an [issue] if this is not the case.
 
-[issue]: https://github.com/bytecodealliance/install-wasi-sdk-action/issues
+[issue]: https://github.com/bytecodealliance/setup-wasi-sdk-action/issues
 
 | OS      | Architecture | Support |
 | ------- | ------------ | ------- |
@@ -75,7 +75,7 @@ This action should be usable on all GitHub runners; open an [issue] if this is n
 
 ### License
 
-`install-wasi-sdk-action` is released under the [Apache License Version 2.0][license]. By contributing to
+`setup-wasi-sdk-action` is released under the [Apache License Version 2.0][license]. By contributing to
 the project, you agree to the license and copyright terms therein and release your contribution
 under these terms.
 

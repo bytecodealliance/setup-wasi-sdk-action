@@ -1,4 +1,4 @@
-# This workflow runs the cross-platform tests for the `install-wasi-sdk` action.
+# This workflow runs the cross-platform tests for the `setup-wasi-sdk` action.
 
 name: Cross-platform
 

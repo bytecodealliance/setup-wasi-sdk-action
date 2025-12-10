@@ -1,4 +1,4 @@
-# This workflow demonstrates how to use the `install-wasi-sdk` action alongside another toolchain.
+# This workflow demonstrates how to use the `setup-wasi-sdk` action alongside another toolchain.
 # By default, the `add-to-path` input is set to `true`, overriding the runner `PATH`, `CC`, and
 # other variables. Here we demonstrate using the action outputs along with a step ID to access the
 # installed tools, without modifying the environment.
