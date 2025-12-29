@@ -87,6 +87,7 @@ def install(url: str, install_dir: str):
     """
     logging.info(f'Downloading {url}')
     file = tempfile.NamedTemporaryFile(delete=False)
+    file.close()  # Close the handle so Windows can access the file
     try:
         request.urlretrieve(url, file.name)
         logging.info(f'Successfully downloaded {file.name}')
