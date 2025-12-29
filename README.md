@@ -1,5 +1,7 @@
 # `setup-wasi-sdk-action`
 
+A [Bytecode Alliance](https://bytecodealliance.org/) project
+
 [![Cross-platform](https://github.com/bytecodealliance/setup-wasi-sdk-action/actions/workflows/cross-platform.yml/badge.svg?branch=main)](https://github.com/bytecodealliance/setup-wasi-sdk-action/actions/workflows/cross-platform.yml)
 [![CMake-compatible](https://github.com/bytecodealliance/setup-wasi-sdk-action/actions/workflows/cmake.yml/badge.svg?branch=main)](https://github.com/bytecodealliance/setup-wasi-sdk-action/actions/workflows/cmake.yml)
 [![Environment-safe](https://github.com/bytecodealliance/setup-wasi-sdk-action/actions/workflows/env-safe.yml/badge.svg?branch=main)](https://github.com/bytecodealliance/setup-wasi-sdk-action/actions/workflows/env-safe.yml)
@@ -26,7 +28,7 @@ runner:
 
 For more advanced usage, see the following examples:
 - [Use with CMake](.github/workflows/cmake.yml)
-- [Use without overriding environment](.github/workflows/variables.yml)
+- [Use without overriding environment](.github/workflows/env-safe.yml)
 
 ### Inputs
 
