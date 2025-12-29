@@ -14,6 +14,10 @@ inputs:
     description: 'Add WASI SDK bin directory to PATH'
     required: false
     default: 'true'
+  github-token:
+    description: 'GitHub token for API requests (avoids rate limiting)'
+    required: false
+    default: ${{ github.token }}
 
 outputs:
   wasi-sdk-path:
@@ -35,6 +39,8 @@ runs:
     - name: Install WASI SDK
       id: install
       shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
       run: |
         $GITHUB_ACTION_PATH/install.py -v \
           --version '${{ inputs.version }}' \

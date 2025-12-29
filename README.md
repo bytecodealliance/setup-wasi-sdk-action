@@ -35,6 +35,7 @@ For more advanced usage, see the following examples:
 | `version`      | WASI SDK version to install (e.g., `25`)   | No       | `latest`                      |
 | `install-path` | Directory to install WASI SDK to           | No       | `$RUNNER_TOOL_CACHE/wasi-sdk` |
 | `add-to-path`  | Add WASI SDK `bin` directory to the `PATH` | No       | `true`                        |
+| `github-token` | GitHub token for API requests              | No       | `${{ github.token }}`         |
 
 Note that passing `latest` as the `version` will attempt to retrieve the latest [release
 tag][releases]. See GitHub's [variables reference] for a description of `RUNNER_TOOL_CACHE`; other
