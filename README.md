@@ -55,10 +55,14 @@ tag][releases]. See GitHub's [variables reference] for a description of `RUNNER_
 
 ### Environment Variables
 
-When `add-to-path` is `true`, the action adds the WASI SDK `bin` directory to the GitHub runner
-`PATH`. It also sets the following environment variables:
+The action always sets the following environment variables:
 
 - `WASI_SDK_PATH`: Path to the WASI SDK installation
+- `WASI_SDK_VERSION`: Version of WASI SDK that was installed
+
+When `add-to-path` is `true` (the default), the action also adds the WASI SDK `bin` directory to
+the GitHub runner `PATH` and sets:
+
 - `CC`: Clang compiler with WASI sysroot configured
 - `CXX`: Clang++ compiler with WASI sysroot configured
 

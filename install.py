@@ -62,7 +62,7 @@ def calculate_version_and_tag(version: str):
     return version, tag
 
 
-def calculate_artifact_url(version: str, tag: str, arch: str, os: str):
+def calculate_artifact_url(version: str, tag: str, arch: str, os_name: str):
     """
     Generate the artifact URL based on the version, architecture, and operating system.
 
@@ -72,13 +72,13 @@ def calculate_artifact_url(version: str, tag: str, arch: str, os: str):
     'https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-25.1/wasi-sdk-25.1-arm64-macos.tar.gz'
     """
     base = 'https://github.com/WebAssembly/wasi-sdk/releases/download'
-    if os == 'Darwin':
-        os = 'macos'
+    if os_name == 'Darwin':
+        os_name = 'macos'
     else:
-        os = os.lower()
+        os_name = os_name.lower()
     if arch.lower() == 'amd64':
         arch = 'x86_64'
-    return f'{base}/{tag}/wasi-sdk-{version}-{arch}-{os}.tar.gz'
+    return f'{base}/{tag}/wasi-sdk-{version}-{arch}-{os_name}.tar.gz'
 
 
 def install(url: str, install_dir: str):
@@ -120,10 +120,21 @@ def install(url: str, install_dir: str):
     return clang_path, sysroot_path
 
 
-def write_github_path(install_dir: str, version: str, clang_path: str, sysroot_path: str):
+def write_github_env(install_dir: str, version: str):
     """
-    Write the WASI SDK path to the GitHub Actions path file. This also updates the GitHub
-    environment for good measure.
+    Write informational WASI SDK environment variables to GitHub Actions.
+    """
+    assert 'GITHUB_ENV' in os.environ, "GITHUB_ENV environment variable must be set"
+    env_file = os.environ['GITHUB_ENV']
+    logging.info(f'Writing to GitHub environment file {env_file}')
+    with open(env_file, 'a') as f:
+        f.write(f'WASI_SDK_PATH={install_dir}\n')
+        f.write(f'WASI_SDK_VERSION={version}\n')
+
+
+def write_github_path(install_dir: str, clang_path: str, sysroot_path: str):
+    """
+    Write the WASI SDK bin directory to GitHub PATH and set CC/CXX environment variables.
     """
     assert 'GITHUB_PATH' in os.environ, "GITHUB_PATH environment variable must be set"
     path_file = os.environ['GITHUB_PATH']
@@ -132,10 +143,8 @@ def write_github_path(install_dir: str, version: str, clang_path: str, sysroot_p
         f.write(os.path.dirname(clang_path))
 
     env_file = os.environ['GITHUB_ENV']
-    logging.info(f'Writing to GitHub environment file {env_file}')
+    logging.info(f'Writing CC/CXX to GitHub environment file {env_file}')
     with open(env_file, 'a') as f:
-        f.write(f'WASI_SDK_PATH={install_dir}\n')
-        f.write(f'WASI_SDK_VERSION={version}\n')
         f.write(f'CC={clang_path} --sysroot={sysroot_path}\n')
         f.write(f'CXX={clang_path}++ --sysroot={sysroot_path}\n')
 
@@ -162,8 +171,10 @@ def main(version: str, install_dir: str, add_to_path: bool):
 
     clang_path, sysroot_path = install(url, install_dir)
 
+    if 'GITHUB_ENV' in os.environ:
+        write_github_env(install_dir, version)
     if add_to_path:
-        write_github_path(install_dir, version, clang_path, sysroot_path)
+        write_github_path(install_dir, clang_path, sysroot_path)
     if 'GITHUB_OUTPUT' in os.environ:
         write_github_output(install_dir, version, clang_path, sysroot_path)
 
