@@ -87,20 +87,25 @@ def install(url: str, install_dir: str):
     """
     logging.info(f'Downloading {url}')
     file = tempfile.NamedTemporaryFile(delete=False)
-    request.urlretrieve(url, file.name)
-    logging.info(f'Successfully downloaded {file.name}')
+    file.close()  # Close the handle so Windows can access the file
+    try:
+        request.urlretrieve(url, file.name)
+        logging.info(f'Successfully downloaded {file.name}')
 
-    os.makedirs(install_dir, exist_ok=True)
-    with tarfile.open(file.name, 'r:gz') as tar:
-        for member in tar.getmembers():
-            # Strip off the first path component (i.e., `--strip-components=1`).
-            parts = member.name.split('/')
-            if len(parts) > 1:
-                member.name = '/'.join(parts[1:])
-                # Eventually we will want to pass `filter='tar'` here, but Windows runners have a
-                # pre-3.9.17 version of Python.
-                tar.extract(member, path=install_dir)
-    logging.info(f'Extracted to {install_dir}')
+        os.makedirs(install_dir, exist_ok=True)
+        with tarfile.open(file.name, 'r:gz') as tar:
+            for member in tar.getmembers():
+                # Strip off the first path component (i.e., `--strip-components=1`).
+                parts = member.name.split('/')
+                if len(parts) > 1:
+                    member.name = '/'.join(parts[1:])
+                    # Eventually we will want to pass `filter='tar'` here, but Windows runners have a
+                    # pre-3.9.17 version of Python.
+                    tar.extract(member, path=install_dir)
+        logging.info(f'Extracted to {install_dir}')
+    finally:
+        os.unlink(file.name)
+        logging.debug(f'Cleaned up temporary file {file.name}')
 
     sep = os.path.sep
     ext = '.exe' if sep == '\\' else ''
