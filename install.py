@@ -48,12 +48,16 @@ def calculate_version_and_tag(version: str):
     ('25.0', 'wasi-sdk-25')
     >>> calculate_version_and_tag('25.1')
     ('25.1', 'wasi-sdk-25.1')
+    >>> calculate_version_and_tag('30')
+    ('30.0', 'wasi-sdk-30')
+    >>> calculate_version_and_tag('30.10')
+    ('30.10', 'wasi-sdk-30.10')
     """
     if version == 'latest':
         tag = retrieve_latest_tag()
         version = tag.replace('wasi-sdk-', '')
     else:
-        stripped = version.rstrip('.0')
+        stripped = version.removesuffix('.0')
         tag = f'wasi-sdk-{stripped}'
 
     if '.' not in version:
