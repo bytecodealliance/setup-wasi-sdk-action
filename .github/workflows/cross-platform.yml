@@ -16,8 +16,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-        version: ['23', '24', '25', 'latest']
+        # SDK 23 introduced ARM64 on Linux and macOS (which also changed the URL format to its current form).
+        # SDK 26 introduced Windows on ARM64.
+        # arm64-linux, arm64-macos, arm64-windows, x86_64-linux, x86_64-macos, x86_64-windows
+        os: [ubuntu-24.04-arm, macos-latest, windows-11-arm, ubuntu-latest, macos-15-intel, windows-latest]
+        version: ['26', 'latest']
     steps:
       - name: Checkout
         uses: actions/checkout@v4

@@ -52,6 +52,13 @@ def calculate_version_and_tag(version: str):
     ('30.0', 'wasi-sdk-30')
     >>> calculate_version_and_tag('30.10')
     ('30.10', 'wasi-sdk-30.10')
+    >>> latest = calculate_version_and_tag('latest')
+    >>> float(latest[0]) > 0
+    True
+    >>> latest[1].startswith('wasi-sdk-')
+    True
+    >>> float(latest[1].removeprefix('wasi-sdk-')) > 0
+    True
     """
     if version == 'latest':
         tag = retrieve_latest_tag()
@@ -74,14 +81,22 @@ def calculate_artifact_url(version: str, tag: str, arch: str, os_name: str):
     'https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-25/wasi-sdk-25.0-x86_64-linux.tar.gz'
     >>> calculate_artifact_url('25.1', 'wasi-sdk-25.1', 'arm64', 'Darwin')
     'https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-25.1/wasi-sdk-25.1-arm64-macos.tar.gz'
+    >>> calculate_artifact_url('30.0', 'wasi-sdk-30', 'aarch64', 'Linux')
+    'https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-30/wasi-sdk-30.0-arm64-linux.tar.gz'
     """
     base = 'https://github.com/WebAssembly/wasi-sdk/releases/download'
-    if os_name == 'Darwin':
-        os_name = 'macos'
-    else:
-        os_name = os_name.lower()
-    if arch.lower() == 'amd64':
-        arch = 'x86_64'
+    match os_name.lower():
+        case 'darwin':
+            os_name = 'macos'
+        case rest:
+            os_name = rest
+    match arch.lower():
+        case 'amd64':
+            arch = 'x86_64'
+        case 'aarch64':
+            arch = 'arm64'
+        case rest:
+            arch = rest
     return f'{base}/{tag}/wasi-sdk-{version}-{arch}-{os_name}.tar.gz'
 
 
@@ -205,7 +220,7 @@ if __name__ == "__main__":
     logging.getLogger().name = os.path.basename(__file__)
 
     if args.test_only:
-        failures, _ = doctest.testmod()
+        failures, _ = doctest.testmod(verbose=args.verbose)
         if failures:
             sys.exit(1)
     else:
