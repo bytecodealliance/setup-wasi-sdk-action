@@ -4,6 +4,7 @@
 # within GitHub Actions but can be used locally as well.
 #
 # Usage: install.py --version 25.0 --install-dir /path/to/install
+#        install.py --version 34.0-rc.2 --install-dir /path/to/install
 #
 # See `install.py --help` for more options.
 
@@ -14,6 +15,7 @@ import json
 import logging
 import os
 import platform
+import re
 import sys
 import tarfile
 import tempfile
@@ -52,6 +54,12 @@ def calculate_version_and_tag(version: str):
     ('30.0', 'wasi-sdk-30')
     >>> calculate_version_and_tag('30.10')
     ('30.10', 'wasi-sdk-30.10')
+    >>> calculate_version_and_tag('34.0-rc.2')
+    ('34.0-rc.2', 'wasi-sdk-34-rc.2')
+    >>> calculate_version_and_tag('34-rc.2')
+    Traceback (most recent call last):
+        ...
+    ValueError: Invalid WASI SDK version '34-rc.2'; expected 'latest', a stable version such as '25' or '25.1', or a full release candidate version such as '34.0-rc.2'
     >>> latest = calculate_version_and_tag('latest')
     >>> float(latest[0]) > 0
     True
@@ -63,12 +71,24 @@ def calculate_version_and_tag(version: str):
     if version == 'latest':
         tag = retrieve_latest_tag()
         version = tag.replace('wasi-sdk-', '')
+        if '.' not in version:
+            version = f'{version}.0'
     else:
-        stripped = version.removesuffix('.0')
-        tag = f'wasi-sdk-{stripped}'
+        # NOTE: Artifact names always include a minor version, but release tags
+        # omit a zero minor, including the `.0` immediately before an RC suffix.
+        match = re.fullmatch(r'(\d+)(?:\.(\d+))?(-rc\.\d+)?', version)
+        if match is None or (match[3] is not None and match[2] is None):
+            raise ValueError(
+                f"Invalid WASI SDK version {version!r}; expected 'latest', "
+                "a stable version such as '25' or '25.1', or a full release "
+                "candidate version such as '34.0-rc.2'")
 
-    if '.' not in version:
-        version = f'{version}.0'
+        major, minor, prerelease = match.groups()
+        minor = minor or '0'
+        prerelease = prerelease or ''
+        version = f'{major}.{minor}{prerelease}'
+        tag_version = major if minor == '0' else f'{major}.{minor}'
+        tag = f'wasi-sdk-{tag_version}{prerelease}'
 
     return version, tag
 
@@ -83,6 +103,8 @@ def calculate_artifact_url(version: str, tag: str, arch: str, os_name: str):
     'https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-25.1/wasi-sdk-25.1-arm64-macos.tar.gz'
     >>> calculate_artifact_url('30.0', 'wasi-sdk-30', 'aarch64', 'Linux')
     'https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-30/wasi-sdk-30.0-arm64-linux.tar.gz'
+    >>> calculate_artifact_url('34.0-rc.2', 'wasi-sdk-34-rc.2', 'AMD64', 'Linux')
+    'https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-34-rc.2/wasi-sdk-34.0-rc.2-x86_64-linux.tar.gz'
     """
     base = 'https://github.com/WebAssembly/wasi-sdk/releases/download'
     match os_name.lower():
@@ -202,7 +224,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description='Install a version of WASI SDK.')
     parser.add_argument(
-        '--version', help='The version to install (e.g., `25.0`).', default='latest')
+        '--version', help='The version to install (e.g., `25.0` or `34.0-rc.2`).', default='latest')
     parser.add_argument(
         '--install-dir', help='The directory to install to; defaults to the current directory', default='.')
     parser.add_argument(
