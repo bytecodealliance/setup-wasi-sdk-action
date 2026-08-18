@@ -24,6 +24,11 @@ jobs:
       - name: Check Python version
         run: python --version
 
+      - name: Run Ruff
+        uses: astral-sh/ruff-action@278981a28ce3188b1e39527901f38254bf3aac89 # v4.1.0
+        with:
+          version: '0.16.3'
+
       - name: Run unit tests
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
