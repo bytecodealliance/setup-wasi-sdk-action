@@ -10,8 +10,10 @@
 
 
 import argparse
+import copy
 import doctest
 import hashlib
+import inspect
 import json
 import logging
 import os
@@ -199,6 +201,39 @@ def calculate_artifact_url(version: str, tag: str, arch: str, os_name: str):
     return f'{base}/{tag}/wasi-sdk-{version}-{arch}-{os_name}.tar.gz'
 
 
+def extract_archive(archive: tarfile.TarFile, install_dir: str):
+    """Extract an SDK archive safely, stripping its root directory."""
+    supports_filter = 'filter' in inspect.signature(archive.extract).parameters
+    destination = os.path.realpath(install_dir)
+
+    for member in archive.getmembers():
+        parts = member.name.split('/')
+        if len(parts) > 1:
+            member.name = '/'.join(parts[1:])
+            if supports_filter:
+                archive.extract(member, path=install_dir, filter='tar')
+            else:
+                archive.extract(
+                    legacy_tar_filter(member, destination), path=install_dir)
+
+
+def legacy_tar_filter(member: tarfile.TarInfo, destination: str):
+    """Apply the `tar` filter's protections for Python versions without it."""
+    target = os.path.realpath(os.path.join(destination, member.name))
+    try:
+        outside_destination = os.path.commonpath([target, destination]) != destination
+    except ValueError:
+        # Different drives on Windows cannot have a common path.
+        outside_destination = True
+    if outside_destination:
+        raise ValueError(
+            f'{member.name!r} would be extracted outside {destination!r}')
+
+    filtered = copy.copy(member)
+    # Match tar_filter: remove high permission bits and group/other write bits.
+    filtered.mode &= ~0o7022
+    return filtered
+
 def install(url: str, install_dir: str, expected_digest: str):
     """
     Download the file from the given URL and extract it to a directory.
@@ -215,15 +250,8 @@ def install(url: str, install_dir: str, expected_digest: str):
         logging.info(f'Verified SHA-256 digest for {artifact_name}')
 
         os.makedirs(install_dir, exist_ok=True)
-        with tarfile.open(archive_file.name, 'r:gz') as tar:
-            for member in tar.getmembers():
-                # Strip off the first path component (i.e., `--strip-components=1`).
-                parts = member.name.split('/')
-                if len(parts) > 1:
-                    member.name = '/'.join(parts[1:])
-                    # Eventually we will want to pass `filter='tar'` here, but Windows runners have a
-                    # pre-3.9.17 version of Python.
-                    tar.extract(member, path=install_dir)
+        with tarfile.open(file.name, 'r:gz') as tar:
+            extract_archive(tar, install_dir)
         logging.info(f'Extracted to {install_dir}')
     finally:
         os.unlink(archive_file.name)

@@ -32,4 +32,6 @@ jobs:
       - name: Run unit tests
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: ./install.py --test-only --verbose
+        run: |
+          ./install.py --test-only --verbose
+          python -m unittest --verbose
