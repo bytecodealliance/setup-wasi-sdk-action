@@ -105,14 +105,14 @@ def install(url: str, install_dir: str):
     Download the file from the given URL and extract it to a directory.
     """
     logging.info(f'Downloading {url}')
-    file = tempfile.NamedTemporaryFile(delete=False)
-    file.close()  # Close the handle so Windows can access the file
+    archive_file = tempfile.NamedTemporaryFile(delete=False)
+    archive_file.close()  # Close the handle so Windows can access the file
     try:
-        request.urlretrieve(url, file.name)
-        logging.info(f'Successfully downloaded {file.name}')
+        request.urlretrieve(url, archive_file.name)
+        logging.info(f'Successfully downloaded {archive_file.name}')
 
         os.makedirs(install_dir, exist_ok=True)
-        with tarfile.open(file.name, 'r:gz') as tar:
+        with tarfile.open(archive_file.name, 'r:gz') as tar:
             for member in tar.getmembers():
                 # Strip off the first path component (i.e., `--strip-components=1`).
                 parts = member.name.split('/')
@@ -123,8 +123,8 @@ def install(url: str, install_dir: str):
                     tar.extract(member, path=install_dir)
         logging.info(f'Extracted to {install_dir}')
     finally:
-        os.unlink(file.name)
-        logging.debug(f'Cleaned up temporary file {file.name}')
+        os.unlink(archive_file.name)
+        logging.debug(f'Cleaned up temporary file {archive_file.name}')
 
     sep = os.path.sep
     ext = '.exe' if sep == '\\' else ''

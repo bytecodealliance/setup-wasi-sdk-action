@@ -6,6 +6,15 @@ requests. Feel free to reach out on the [Bytecode Alliance
 Zulip](https://bytecodealliance.zulipchat.com/) as well if you'd like assistance
 in contributing or would just like to say hi.
 
+## Development
+
+Run the Python checks before submitting a pull request:
+
+```sh
+ruff check .
+python3 install.py --test-only
+```
+
 ## Code of Conduct
 
 This is a [Bytecode Alliance](https://bytecodealliance.org/) project, and follows the Bytecode Alliance's [Code of Conduct](https://github.com/bytecodealliance/governance/blob/main/CODE_OF_CONDUCT.md).
