@@ -3,7 +3,7 @@ description: 'Install a WASI SDK toolchain for WebAssembly development'
 
 inputs:
   version:
-    description: 'WASI SDK version to install (e.g., "25", "24", "23")'
+    description: 'WASI SDK version to install (e.g., "25" or "34.0-rc.2")'
     required: false
     default: 'latest'
   install-path:
