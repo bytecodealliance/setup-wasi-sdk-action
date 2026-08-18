@@ -246,11 +246,11 @@ def install(url: str, install_dir: str, expected_digest: str):
         logging.info(f'Successfully downloaded {archive_file.name}')
 
         artifact_name = url.rsplit('/', 1)[-1]
-        verify_download(file.name, expected_digest, artifact_name)
+        verify_download(archive_file.name, expected_digest, artifact_name)
         logging.info(f'Verified SHA-256 digest for {artifact_name}')
 
         os.makedirs(install_dir, exist_ok=True)
-        with tarfile.open(file.name, 'r:gz') as tar:
+        with tarfile.open(archive_file.name, 'r:gz') as tar:
             extract_archive(tar, install_dir)
         logging.info(f'Extracted to {install_dir}')
     finally:
