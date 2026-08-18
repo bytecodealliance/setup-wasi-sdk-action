@@ -32,15 +32,16 @@ For more advanced usage, see the following examples:
 
 ### Inputs
 
-| Input          | Description                                | Required | Default                       |
-| -------------- | -------------------------------------------| -------- | ----------------------------- |
-| `version`      | WASI SDK version to install (e.g., `25`)   | No       | `latest`                      |
-| `install-path` | Directory to install WASI SDK to           | No       | `$RUNNER_TOOL_CACHE/wasi-sdk` |
-| `add-to-path`  | Add WASI SDK `bin` directory to the `PATH` | No       | `true`                        |
-| `github-token` | GitHub token for API requests              | No       | `${{ github.token }}`         |
+| Input          | Description                                            | Required | Default                       |
+| -------------- | ------------------------------------------------------ | -------- | ----------------------------- |
+| `version`      | WASI SDK version to install (e.g., `25` or `34.0-rc.2`) | No       | `latest`                      |
+| `install-path` | Directory to install WASI SDK to                       | No       | `$RUNNER_TOOL_CACHE/wasi-sdk` |
+| `add-to-path`  | Add WASI SDK `bin` directory to the `PATH`             | No       | `true`                        |
+| `github-token` | GitHub token for API requests                          | No       | `${{ github.token }}`         |
 
-Note that passing `latest` as the `version` will attempt to retrieve the latest [release
-tag][releases]. See GitHub's [variables reference] for a description of `RUNNER_TOOL_CACHE`; other
+Release candidates must be selected explicitly using their full published artifact version, for
+example `34.0-rc.2`. The `latest` value uses GitHub's latest-release endpoint, which does not select
+prereleases. See GitHub's [variables reference] for a description of `RUNNER_TOOL_CACHE`; other
 `setup-*` actions store their artifacts here.
 
 [variables reference]: https://docs.github.com/en/actions/reference/workflows-and-actions/variables
