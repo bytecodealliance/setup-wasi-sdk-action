@@ -11,6 +11,7 @@
 
 import argparse
 import doctest
+import hashlib
 import json
 import logging
 import os
@@ -19,7 +20,17 @@ import re
 import sys
 import tarfile
 import tempfile
-from urllib import request
+from urllib import parse, request
+
+
+def github_api_request(url: str):
+    """Create an authenticated request for the GitHub API."""
+    req = request.Request(url)
+    req.add_header('Accept', 'application/vnd.github+json')
+    req.add_header('X-GitHub-Api-Version', '2022-11-28')
+    if 'GITHUB_TOKEN' in os.environ:
+        req.add_header('Authorization', f'Bearer {os.environ["GITHUB_TOKEN"]}')
+    return req
 
 
 def retrieve_latest_tag():
@@ -30,14 +41,80 @@ def retrieve_latest_tag():
     'wasi-sdk-'
     """
     url = 'https://api.github.com/repos/WebAssembly/wasi-sdk/releases/latest'
-    req = request.Request(url)
-    # Because macos runners share the same IP, they are immediately rate-limited by GitHub.
-    # (https://github.com/actions/runner-images/issues/602).
-    if 'GITHUB_TOKEN' in os.environ:
-        req.add_header('Authorization', f'Bearer {os.environ["GITHUB_TOKEN"]}')
+    # Because macos runners share the same IP, unauthenticated requests are
+    # immediately rate-limited by GitHub (https://github.com/actions/runner-images/issues/602).
+    req = github_api_request(url)
     with request.urlopen(req) as response:
         data = json.loads(response.read().decode('utf-8'))
         return data['tag_name']
+
+
+def find_asset_digest(release: dict, artifact_name: str):
+    """
+    Find and validate an artifact's SHA-256 digest in GitHub release metadata.
+
+    >>> release = {'assets': [{'name': 'sdk.tar.gz', 'digest': 'sha256:' + 'a' * 64}]}
+    >>> find_asset_digest(release, 'sdk.tar.gz')
+    'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+    >>> find_asset_digest({'assets': []}, 'missing.tar.gz')
+    Traceback (most recent call last):
+        ...
+    ValueError: Release metadata does not contain asset 'missing.tar.gz'
+    >>> find_asset_digest({'assets': [{'name': 'sdk.tar.gz', 'digest': None}]}, 'sdk.tar.gz')
+    Traceback (most recent call last):
+        ...
+    ValueError: Release asset 'sdk.tar.gz' does not have a valid SHA-256 digest
+    """
+    asset = next(
+        (asset for asset in release.get('assets', [])
+         if asset.get('name') == artifact_name),
+        None)
+    if asset is None:
+        raise ValueError(
+            f'Release metadata does not contain asset {artifact_name!r}')
+
+    digest = asset.get('digest')
+    if (not isinstance(digest, str)
+            or re.fullmatch(r'sha256:[0-9a-fA-F]{64}', digest) is None):
+        raise ValueError(
+            f'Release asset {artifact_name!r} does not have a valid SHA-256 digest')
+    return digest.lower()
+
+
+def retrieve_asset_digest(tag: str, artifact_name: str):
+    """Retrieve an artifact's published digest from its GitHub release."""
+    encoded_tag = parse.quote(tag, safe='')
+    url = ('https://api.github.com/repos/WebAssembly/wasi-sdk/releases/tags/'
+           f'{encoded_tag}')
+    with request.urlopen(github_api_request(url)) as response:
+        release = json.loads(response.read().decode('utf-8'))
+    return find_asset_digest(release, artifact_name)
+
+
+def verify_download(file_path: str, expected_digest: str, artifact_name: str):
+    """
+    Verify a downloaded file against its published SHA-256 digest.
+
+    >>> validate_digest('a' * 64, 'sha256:' + 'a' * 64, 'sdk.tar.gz')
+    >>> validate_digest('b' * 64, 'sha256:' + 'a' * 64, 'sdk.tar.gz')
+    Traceback (most recent call last):
+        ...
+    ValueError: SHA-256 verification failed for 'sdk.tar.gz': expected aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, got bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    """
+    digest = hashlib.sha256()
+    with open(file_path, 'rb') as downloaded:
+        for chunk in iter(lambda: downloaded.read(1024 * 1024), b''):
+            digest.update(chunk)
+    validate_digest(digest.hexdigest(), expected_digest, artifact_name)
+
+
+def validate_digest(actual: str, expected_digest: str, artifact_name: str):
+    """Compare a calculated SHA-256 value with a published digest."""
+    expected = expected_digest.removeprefix('sha256:')
+    if actual.lower() != expected.lower():
+        raise ValueError(
+            f'SHA-256 verification failed for {artifact_name!r}: '
+            f'expected {expected}, got {actual}')
 
 
 def calculate_version_and_tag(version: str):
@@ -122,7 +199,7 @@ def calculate_artifact_url(version: str, tag: str, arch: str, os_name: str):
     return f'{base}/{tag}/wasi-sdk-{version}-{arch}-{os_name}.tar.gz'
 
 
-def install(url: str, install_dir: str):
+def install(url: str, install_dir: str, expected_digest: str):
     """
     Download the file from the given URL and extract it to a directory.
     """
@@ -132,6 +209,10 @@ def install(url: str, install_dir: str):
     try:
         request.urlretrieve(url, archive_file.name)
         logging.info(f'Successfully downloaded {archive_file.name}')
+
+        artifact_name = url.rsplit('/', 1)[-1]
+        verify_download(file.name, expected_digest, artifact_name)
+        logging.info(f'Verified SHA-256 digest for {artifact_name}')
 
         os.makedirs(install_dir, exist_ok=True)
         with tarfile.open(archive_file.name, 'r:gz') as tar:
@@ -210,7 +291,9 @@ def main(version: str, install_dir: str, add_to_path: bool):
     url = calculate_artifact_url(
         version, tag, platform.machine(), platform.system())
 
-    clang_path, sysroot_path = install(url, install_dir)
+    artifact_name = url.rsplit('/', 1)[-1]
+    expected_digest = retrieve_asset_digest(tag, artifact_name)
+    clang_path, sysroot_path = install(url, install_dir, expected_digest)
 
     if 'GITHUB_ENV' in os.environ:
         write_github_env(install_dir, version)
