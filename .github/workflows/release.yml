@@ -1,0 +1,100 @@
+name: release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Semantic version to release (for example, v1.0.0)'
+        required: true
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Release ${{ inputs.version }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate release
+        id: release
+        shell: bash
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          if [[ ! "$RELEASE_VERSION" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "version must be a canonical vMAJOR.MINOR.PATCH (for example, v1.0.0)" >&2
+            exit 1
+          fi
+
+          if [[ "$(git rev-parse HEAD)" != "$(git rev-parse origin/main)" ]]; then
+            echo "checked-out commit does not match origin/main" >&2
+            exit 1
+          fi
+
+          if git ls-remote --exit-code --tags origin "refs/tags/$RELEASE_VERSION"; then
+            echo "tag $RELEASE_VERSION already exists and will not be overwritten" >&2
+            exit 1
+          fi
+
+          major_version=${RELEASE_VERSION%%.*}
+          existing_versions=()
+          while read -r _ tag_ref; do
+            tag=${tag_ref#refs/tags/}
+            if [[ "$tag" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+              existing_versions+=("$tag")
+            fi
+          done < <(git ls-remote --tags --refs origin "refs/tags/$major_version.*")
+
+          if (( ${#existing_versions[@]} > 0 )); then
+            latest_version=$(printf '%s\n' "${existing_versions[@]}" | sort --version-sort | tail -n 1)
+            newest_version=$(printf '%s\n' "$latest_version" "$RELEASE_VERSION" | sort --version-sort | tail -n 1)
+            if [[ "$newest_version" != "$RELEASE_VERSION" ]]; then
+              echo "$RELEASE_VERSION would move $major_version backward from $latest_version" >&2
+              exit 1
+            fi
+          fi
+
+          echo "major=$major_version" >> "$GITHUB_OUTPUT"
+
+      - name: Run unit tests
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ./install.py --test-only --verbose
+          python -m unittest --verbose
+
+      - name: Create and push tags
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_VERSION: ${{ inputs.version }}
+          MAJOR_VERSION: ${{ steps.release.outputs.major }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag --annotate "$RELEASE_VERSION" --message "Release $RELEASE_VERSION"
+          git tag --annotate --force "$MAJOR_VERSION" \
+            --message "Release $MAJOR_VERSION ($RELEASE_VERSION)"
+          gh auth setup-git
+          git push --atomic origin \
+            "refs/tags/$RELEASE_VERSION:refs/tags/$RELEASE_VERSION" \
+            "+refs/tags/$MAJOR_VERSION:refs/tags/$MAJOR_VERSION"
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: gh release create "$RELEASE_VERSION" --verify-tag --generate-notes --title "$RELEASE_VERSION"
