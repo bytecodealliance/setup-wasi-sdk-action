@@ -34,8 +34,8 @@ jobs:
         env:
           RELEASE_VERSION: ${{ inputs.version }}
         run: |
-          if [[ ! "$RELEASE_VERSION" =~ ^v[0-9][0-9]*\.[0-9]+\.[0-9]+$ ]]; then
-            echo "version must match vMAJOR.MINOR.PATCH (for example, v1.0.0)" >&2
+          if [[ ! "$RELEASE_VERSION" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "version must be a canonical vMAJOR.MINOR.PATCH (for example, v1.0.0)" >&2
             exit 1
           fi
 
