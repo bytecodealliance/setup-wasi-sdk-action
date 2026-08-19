@@ -1,24 +1,32 @@
 # This workflow demonstrates how to use the `setup-wasi-sdk` action from CMake projects. The WASI
 # SDK comes bundled with a `*.cmake` file that makes this relatively easy.
 
-name: CMake-compatible
+name: cmake-compatible
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
   pull_request:
-    branches: [main]
+    branches:
+      - main
   workflow_dispatch:
   merge_group:
+
+permissions: {}
 
 jobs:
   cmake:
     name: Example
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - uses: ./
 

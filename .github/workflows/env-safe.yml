@@ -3,24 +3,32 @@
 # other variables. Here we demonstrate using the action outputs along with a step ID to access the
 # installed tools, without modifying the environment.
 
-name: Environment-safe
+name: environment-safe
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
   pull_request:
-    branches: [main]
+    branches:
+      - main
   workflow_dispatch:
   merge_group:
+
+permissions: {}
 
 jobs:
   env:
     name: Example
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - uses: ./
         id: wasi-sdk
@@ -29,14 +37,21 @@ jobs:
 
       - name: Check output variables
         shell: bash
+        env:
+          CLANG_PATH: ${{ steps.wasi-sdk.outputs.clang-path }}
+          SDK_PATH: ${{ steps.wasi-sdk.outputs.wasi-sdk-path }}
+          SDK_VERSION: ${{ steps.wasi-sdk.outputs.wasi-sdk-version }}
+          SYSROOT_PATH: ${{ steps.wasi-sdk.outputs.sysroot-path }}
         run: |
-          echo "wasi-sdk-path: ${{ steps.wasi-sdk.outputs.wasi-sdk-path }}"
-          echo "wasi-sdk-version: ${{ steps.wasi-sdk.outputs.wasi-sdk-version }}"
-          echo "clang-path: ${{ steps.wasi-sdk.outputs.clang-path }}"
-          echo "sysroot-path: ${{ steps.wasi-sdk.outputs.sysroot-path }}"
+          echo "wasi-sdk-path: $SDK_PATH"
+          echo "wasi-sdk-version: $SDK_VERSION"
+          echo "clang-path: $CLANG_PATH"
+          echo "sysroot-path: $SYSROOT_PATH"
 
       - name: Check Clang version
-        run: ${{ steps.wasi-sdk.outputs.clang-path }} --version
+        env:
+          CLANG_PATH: ${{ steps.wasi-sdk.outputs.clang-path }}
+        run: '"$CLANG_PATH" --version'
 
       - name: Create test C program
         shell: bash
@@ -54,9 +69,12 @@ jobs:
       # in the `CC` environment variable.
       - name: Build WebAssembly module
         shell: bash
+        env:
+          CLANG_PATH: ${{ steps.wasi-sdk.outputs.clang-path }}
+          SYSROOT_PATH: ${{ steps.wasi-sdk.outputs.sysroot-path }}
         run: |
-          ${{ steps.wasi-sdk.outputs.clang-path }} \
-              --sysroot=${{ steps.wasi-sdk.outputs.sysroot-path }} \
+          "$CLANG_PATH" \
+              --sysroot="$SYSROOT_PATH" \
               hello.c -o hello.wasm
           ls -la hello.wasm
           file hello.wasm

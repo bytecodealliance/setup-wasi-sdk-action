@@ -1,6 +1,10 @@
 name: 'Install WASI SDK'
 description: 'Install a WASI SDK toolchain for WebAssembly development'
 
+branding:
+  icon: 'download-cloud'
+  color: 'blue'
+
 inputs:
   version:
     description: 'WASI SDK version to install (e.g., "25" or "34.0-rc.2")'
@@ -41,8 +45,15 @@ runs:
       shell: bash
       env:
         GITHUB_TOKEN: ${{ inputs.github-token }}
+        INPUT_ADD_TO_PATH: ${{ inputs.add-to-path }}
+        INPUT_INSTALL_PATH: ${{ inputs.install-path }}
+        INPUT_VERSION: ${{ inputs.version }}
       run: |
-        $GITHUB_ACTION_PATH/install.py -v \
-          --version '${{ inputs.version }}' \
-          --install-dir '${{ inputs.install-path }}' \
-          ${{ inputs.add-to-path == 'true' && '--add-to-path' || '' }}
+        args=(
+          --version "$INPUT_VERSION"
+          --install-dir "$INPUT_INSTALL_PATH"
+        )
+        if [[ "$INPUT_ADD_TO_PATH" == 'true' ]]; then
+          args+=(--add-to-path)
+        fi
+        "$GITHUB_ACTION_PATH/install.py" -v "${args[@]}"

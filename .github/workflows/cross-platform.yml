@@ -1,19 +1,25 @@
 # This workflow runs the cross-platform tests for the `setup-wasi-sdk` action.
 
-name: Cross-platform
+name: cross-platform
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
   pull_request:
-    branches: [main]
+    branches:
+      - main
   workflow_dispatch:
   merge_group:
+
+permissions: {}
 
 jobs:
   cross_platform:
     name: Test
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
@@ -28,6 +34,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Install WASI SDK
         id: wasi-sdk
@@ -37,11 +45,16 @@ jobs:
 
       - name: Check output variables
         shell: bash
+        env:
+          CLANG_PATH: ${{ steps.wasi-sdk.outputs.clang-path }}
+          SDK_PATH: ${{ steps.wasi-sdk.outputs.wasi-sdk-path }}
+          SDK_VERSION: ${{ steps.wasi-sdk.outputs.wasi-sdk-version }}
+          SYSROOT_PATH: ${{ steps.wasi-sdk.outputs.sysroot-path }}
         run: |
-          echo "wasi-sdk-path: ${{ steps.wasi-sdk.outputs.wasi-sdk-path }}"
-          echo "wasi-sdk-version: ${{ steps.wasi-sdk.outputs.wasi-sdk-version }}"
-          echo "clang-path: ${{ steps.wasi-sdk.outputs.clang-path }}"
-          echo "sysroot-path: ${{ steps.wasi-sdk.outputs.sysroot-path }}"
+          echo "wasi-sdk-path: $SDK_PATH"
+          echo "wasi-sdk-version: $SDK_VERSION"
+          echo "clang-path: $CLANG_PATH"
+          echo "sysroot-path: $SYSROOT_PATH"
 
       # This should print a wasi-sdk version because `add-to-path` is true by default.
       - name: Check Clang version
@@ -75,7 +88,7 @@ jobs:
           file hello.wasm
 
       - name: Install Wasmtime
-        uses: bytecodealliance/actions/wasmtime/setup@v1.1.0
+        uses: bytecodealliance/actions/wasmtime/setup@d742827944dcb656569399571a8a45261b5089f6 # v1.1.0
 
       - name: Test WebAssembly module
         run: wasmtime hello.wasm
