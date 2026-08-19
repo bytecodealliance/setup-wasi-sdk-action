@@ -49,7 +49,25 @@ jobs:
             exit 1
           fi
 
-          echo "major=${RELEASE_VERSION%%.*}" >> "$GITHUB_OUTPUT"
+          major_version=${RELEASE_VERSION%%.*}
+          existing_versions=()
+          while read -r _ tag_ref; do
+            tag=${tag_ref#refs/tags/}
+            if [[ "$tag" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+              existing_versions+=("$tag")
+            fi
+          done < <(git ls-remote --tags --refs origin "refs/tags/$major_version.*")
+
+          if (( ${#existing_versions[@]} > 0 )); then
+            latest_version=$(printf '%s\n' "${existing_versions[@]}" | sort --version-sort | tail -n 1)
+            newest_version=$(printf '%s\n' "$latest_version" "$RELEASE_VERSION" | sort --version-sort | tail -n 1)
+            if [[ "$newest_version" != "$RELEASE_VERSION" ]]; then
+              echo "$RELEASE_VERSION would move $major_version backward from $latest_version" >&2
+              exit 1
+            fi
+          fi
+
+          echo "major=$major_version" >> "$GITHUB_OUTPUT"
 
       - name: Run unit tests
         env:

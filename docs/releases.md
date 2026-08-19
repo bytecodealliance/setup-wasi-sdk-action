@@ -17,9 +17,10 @@ Security-sensitive consumers can pin the immutable version tag or its commit.
 4. Review the generated GitHub release notes.
 
 The workflow always releases the current `main`, reruns the doctests, refuses
-to replace an existing semantic-version tag, creates the immutable version tag,
-and moves the corresponding major tag to the same commit. Tag pushes are
-atomic, so neither tag is updated if GitHub rejects either update.
+to replace an existing semantic-version tag or move a major tag backward,
+creates the immutable version tag, and moves the corresponding major tag to the
+same commit. Tag pushes are atomic, so neither tag is updated if GitHub rejects
+either update.
 
 If tag creation succeeds but GitHub release creation fails, do not rerun the
 workflow because the immutable tag now exists. Instead, create the GitHub
