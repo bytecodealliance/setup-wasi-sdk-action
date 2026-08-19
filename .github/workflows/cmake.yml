@@ -54,7 +54,7 @@ jobs:
       - name: Build with CMake
         run: |
           cd cmake-test
-          cmake -B build -DCMAKE_TOOLCHAIN_FILE=$WASI_SDK_PATH/share/cmake/wasi-sdk.cmake
+          cmake -B build -DCMAKE_TOOLCHAIN_FILE="$WASI_SDK_PATH/share/cmake/wasi-sdk.cmake"
           cmake --build build
           ls -la build/hello
           file build/hello
