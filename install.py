@@ -11,13 +11,16 @@
 
 import argparse
 import copy
+import datetime
 import doctest
+import email.utils
 import hashlib
 import inspect
 import json
 import logging
 import os
 import platform
+import random
 import re
 import sys
 import tarfile
@@ -27,6 +30,7 @@ from urllib import error, parse, request
 
 DOWNLOAD_ATTEMPTS = 4
 DOWNLOAD_BACKOFF_SECONDS = 1
+DOWNLOAD_JITTER_SECONDS = 1
 RETRYABLE_HTTP_STATUS_CODES = frozenset({408, 429, 500, 502, 503, 504})
 
 
@@ -118,11 +122,15 @@ def verify_download(file_path: str, expected_digest: str, artifact_name: str):
 def download_with_retries(url: str, destination: str):
     """Download a URL, retrying transient failures with exponential backoff."""
     for attempt in range(1, DOWNLOAD_ATTEMPTS + 1):
+        server_retry_delay = None
         try:
             request.urlretrieve(url, destination)
             return
         except error.HTTPError as exc:
-            if exc.code not in RETRYABLE_HTTP_STATUS_CODES:
+            server_retry_delay = retry_delay_from_headers(exc.headers)
+            is_github_rate_limit = exc.code == 403 and server_retry_delay is not None
+            if (exc.code not in RETRYABLE_HTTP_STATUS_CODES
+                    and not is_github_rate_limit):
                 raise
             download_error = exc
         except (error.URLError, ConnectionError, TimeoutError) as exc:
@@ -131,11 +139,37 @@ def download_with_retries(url: str, destination: str):
         if attempt == DOWNLOAD_ATTEMPTS:
             raise download_error
 
-        delay = DOWNLOAD_BACKOFF_SECONDS * 2 ** (attempt - 1)
+        base_delay = (server_retry_delay if server_retry_delay is not None
+                      else DOWNLOAD_BACKOFF_SECONDS * 2 ** (attempt - 1))
+        delay = base_delay + random.uniform(0, DOWNLOAD_JITTER_SECONDS)
         logging.warning(
             f'Download attempt {attempt}/{DOWNLOAD_ATTEMPTS} failed: '
             f'{download_error}. Retrying in {delay} seconds')
         time.sleep(delay)
+
+
+def retry_delay_from_headers(headers):
+    """Return a server-requested retry delay, including GitHub rate limits."""
+    retry_after = headers.get('Retry-After')
+    if retry_after is not None:
+        try:
+            return max(0, int(retry_after))
+        except ValueError:
+            try:
+                retry_at = email.utils.parsedate_to_datetime(retry_after)
+                if retry_at.tzinfo is None:
+                    retry_at = retry_at.replace(tzinfo=datetime.timezone.utc)
+                return max(0, retry_at.timestamp() - time.time())
+            except (TypeError, ValueError):
+                pass
+
+    if headers.get('X-RateLimit-Remaining') == '0':
+        try:
+            return max(0, int(headers['X-RateLimit-Reset']) - time.time())
+        except (KeyError, TypeError, ValueError):
+            pass
+
+    return None
 
 
 def validate_digest(actual: str, expected_digest: str, artifact_name: str):

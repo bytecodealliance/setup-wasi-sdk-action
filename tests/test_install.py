@@ -3,6 +3,7 @@ import os
 import tarfile
 import tempfile
 import unittest
+from email.message import Message
 from unittest import mock
 from urllib import error
 
@@ -65,6 +66,16 @@ class ExtractArchiveTests(unittest.TestCase):
 
 
 class DownloadWithRetriesTests(unittest.TestCase):
+    def setUp(self):
+        jitter = mock.patch('install.random.uniform', return_value=0)
+        self.random_uniform = jitter.start()
+        self.addCleanup(jitter.stop)
+
+    @staticmethod
+    def http_error(status, headers=None):
+        return error.HTTPError(
+            'https://example.com/sdk.tar.gz', status, 'Error', headers or {}, None)
+
     @mock.patch('install.time.sleep')
     @mock.patch('install.request.urlretrieve')
     def test_retries_network_errors_with_exponential_backoff(self, retrieve, sleep):
@@ -82,8 +93,7 @@ class DownloadWithRetriesTests(unittest.TestCase):
     @mock.patch('install.time.sleep')
     @mock.patch('install.request.urlretrieve')
     def test_retries_transient_http_errors(self, retrieve, sleep):
-        unavailable = error.HTTPError(
-            'https://example.com/sdk.tar.gz', 503, 'Unavailable', {}, None)
+        unavailable = self.http_error(503)
         self.addCleanup(unavailable.close)
         retrieve.side_effect = [unavailable, None]
 
@@ -95,8 +105,7 @@ class DownloadWithRetriesTests(unittest.TestCase):
     @mock.patch('install.time.sleep')
     @mock.patch('install.request.urlretrieve')
     def test_does_not_retry_permanent_http_errors(self, retrieve, sleep):
-        not_found = error.HTTPError(
-            'https://example.com/sdk.tar.gz', 404, 'Not Found', {}, None)
+        not_found = self.http_error(404)
         self.addCleanup(not_found.close)
         retrieve.side_effect = not_found
 
@@ -118,6 +127,59 @@ class DownloadWithRetriesTests(unittest.TestCase):
 
         self.assertEqual(retrieve.call_count, install.DOWNLOAD_ATTEMPTS)
         sleep.assert_has_calls([mock.call(1), mock.call(2), mock.call(4)])
+
+    @mock.patch('install.time.sleep')
+    @mock.patch('install.request.urlretrieve')
+    def test_adds_bounded_jitter_to_backoff(self, retrieve, sleep):
+        self.random_uniform.return_value = 0.75
+        retrieve.side_effect = [error.URLError('network unavailable'), None]
+
+        install.download_with_retries('https://example.com/sdk.tar.gz', '/tmp/sdk.tar.gz')
+
+        self.random_uniform.assert_called_once_with(0, install.DOWNLOAD_JITTER_SECONDS)
+        sleep.assert_called_once_with(1.75)
+
+    @mock.patch('install.time.sleep')
+    @mock.patch('install.request.urlretrieve')
+    def test_respects_retry_after(self, retrieve, sleep):
+        headers = Message()
+        headers['Retry-After'] = '17'
+        rate_limited = self.http_error(429, headers)
+        self.addCleanup(rate_limited.close)
+        retrieve.side_effect = [rate_limited, None]
+
+        install.download_with_retries('https://example.com/sdk.tar.gz', '/tmp/sdk.tar.gz')
+
+        sleep.assert_called_once_with(17)
+
+    @mock.patch('install.time.time', return_value=1_000)
+    @mock.patch('install.time.sleep')
+    @mock.patch('install.request.urlretrieve')
+    def test_respects_github_rate_limit_reset(self, retrieve, sleep, _time):
+        headers = Message()
+        headers['X-RateLimit-Remaining'] = '0'
+        headers['X-RateLimit-Reset'] = '1042'
+        rate_limited = self.http_error(403, headers)
+        self.addCleanup(rate_limited.close)
+        retrieve.side_effect = [rate_limited, None]
+
+        install.download_with_retries('https://example.com/sdk.tar.gz', '/tmp/sdk.tar.gz')
+
+        sleep.assert_called_once_with(42)
+
+    @mock.patch('install.time.sleep')
+    @mock.patch('install.request.urlretrieve')
+    def test_does_not_retry_unrelated_forbidden_response(self, retrieve, sleep):
+        forbidden = self.http_error(403)
+        self.addCleanup(forbidden.close)
+        retrieve.side_effect = forbidden
+
+        with self.assertRaises(error.HTTPError):
+            install.download_with_retries(
+                'https://example.com/sdk.tar.gz', '/tmp/sdk.tar.gz')
+
+        retrieve.assert_called_once()
+        sleep.assert_not_called()
 
 
 if __name__ == '__main__':
