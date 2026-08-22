@@ -24,15 +24,8 @@ import tarfile
 import tempfile
 from urllib import parse, request
 
-
-def github_api_request(url: str):
-    """Create an authenticated request for the GitHub API."""
-    req = request.Request(url)
-    req.add_header('Accept', 'application/vnd.github+json')
-    req.add_header('X-GitHub-Api-Version', '2022-11-28')
-    if 'GITHUB_TOKEN' in os.environ:
-        req.add_header('Authorization', f'Bearer {os.environ["GITHUB_TOKEN"]}')
-    return req
+from action import logging as action_logging
+from action.http import download_with_retries, github_api_request
 
 
 def retrieve_latest_tag():
@@ -242,7 +235,7 @@ def install(url: str, install_dir: str, expected_digest: str):
     archive_file = tempfile.NamedTemporaryFile(delete=False)
     archive_file.close()  # Close the handle so Windows can access the file
     try:
-        request.urlretrieve(url, archive_file.name)
+        download_with_retries(url, archive_file.name)
         logging.info(f'Successfully downloaded {archive_file.name}')
 
         artifact_name = url.rsplit('/', 1)[-1]
@@ -347,10 +340,8 @@ if __name__ == "__main__":
         '--test-only', help='Run the script\'s doctests and exit', action='store_true', default=False)
     args = parser.parse_args()
 
-    # Setup logging.
-    if args.verbose:
-        logging.basicConfig(level=logging.DEBUG)
-    logging.getLogger().name = os.path.basename(__file__)
+    action_logging.configure_logging(
+        verbose=bool(args.verbose), logger_name=os.path.basename(__file__))
 
     if args.test_only:
         failures, _ = doctest.testmod(verbose=args.verbose)
