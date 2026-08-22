@@ -31,6 +31,7 @@ from urllib import error, parse, request
 DOWNLOAD_ATTEMPTS = 4
 DOWNLOAD_BACKOFF_SECONDS = 1
 DOWNLOAD_JITTER_SECONDS = 1
+MAX_RATE_LIMIT_WAIT_SECONDS = 60
 RETRYABLE_HTTP_STATUS_CODES = frozenset({408, 429, 500, 502, 503, 504})
 
 
@@ -128,7 +129,27 @@ def download_with_retries(url: str, destination: str):
             return
         except error.HTTPError as exc:
             server_retry_delay = retry_delay_from_headers(exc.headers)
-            is_github_rate_limit = exc.code == 403 and server_retry_delay is not None
+            has_github_rate_limit_headers = (
+                exc.headers.get('Retry-After') is not None
+                or exc.headers.get('X-RateLimit-Remaining') == '0')
+            is_github_rate_limit = (
+                exc.code == 429
+                or exc.code == 403 and has_github_rate_limit_headers)
+            if is_github_rate_limit:
+                if server_retry_delay is None:
+                    logging.error(
+                        f'Rate limited with HTTP {exc.code}, but the server did not '
+                        'provide a usable retry delay; not retrying')
+                    raise
+                if server_retry_delay >= MAX_RATE_LIMIT_WAIT_SECONDS:
+                    logging.error(
+                        f'Rate limited with HTTP {exc.code}; the server requested a '
+                        f'{server_retry_delay}-second wait, which is not less than '
+                        f'the {MAX_RATE_LIMIT_WAIT_SECONDS}-second limit; not retrying')
+                    raise
+                logging.warning(
+                    f'Rate limited with HTTP {exc.code}; the server requested a '
+                    f'{server_retry_delay}-second wait before retrying')
             if (exc.code not in RETRYABLE_HTTP_STATUS_CODES
                     and not is_github_rate_limit):
                 raise

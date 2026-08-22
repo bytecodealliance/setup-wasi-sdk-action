@@ -181,6 +181,40 @@ class DownloadWithRetriesTests(unittest.TestCase):
         retrieve.assert_called_once()
         sleep.assert_not_called()
 
+    @mock.patch('install.time.sleep')
+    @mock.patch('install.request.urlretrieve')
+    def test_does_not_retry_rate_limit_without_delay(self, retrieve, sleep):
+        rate_limited = self.http_error(429)
+        self.addCleanup(rate_limited.close)
+        retrieve.side_effect = rate_limited
+
+        with self.assertLogs(level='ERROR') as logs:
+            with self.assertRaises(error.HTTPError):
+                install.download_with_retries(
+                    'https://example.com/sdk.tar.gz', '/tmp/sdk.tar.gz')
+
+        self.assertIn('did not provide a usable retry delay', logs.output[0])
+        retrieve.assert_called_once()
+        sleep.assert_not_called()
+
+    @mock.patch('install.time.sleep')
+    @mock.patch('install.request.urlretrieve')
+    def test_does_not_wait_at_rate_limit_threshold(self, retrieve, sleep):
+        headers = Message()
+        headers['Retry-After'] = str(install.MAX_RATE_LIMIT_WAIT_SECONDS)
+        rate_limited = self.http_error(429, headers)
+        self.addCleanup(rate_limited.close)
+        retrieve.side_effect = rate_limited
+
+        with self.assertLogs(level='ERROR') as logs:
+            with self.assertRaises(error.HTTPError):
+                install.download_with_retries(
+                    'https://example.com/sdk.tar.gz', '/tmp/sdk.tar.gz')
+
+        self.assertIn('is not less than', logs.output[0])
+        retrieve.assert_called_once()
+        sleep.assert_not_called()
+
 
 if __name__ == '__main__':
     unittest.main()
