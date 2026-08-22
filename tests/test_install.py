@@ -3,6 +3,8 @@ import os
 import tarfile
 import tempfile
 import unittest
+from unittest import mock
+from urllib import error
 
 import install
 
@@ -60,6 +62,62 @@ class ExtractArchiveTests(unittest.TestCase):
             with make_archive('wasi-sdk/../../escape') as archive:
                 with self.assertRaisesRegex(ValueError, 'outside'):
                     install.extract_archive(LegacyArchive(archive), destination)
+
+
+class DownloadWithRetriesTests(unittest.TestCase):
+    @mock.patch('install.time.sleep')
+    @mock.patch('install.request.urlretrieve')
+    def test_retries_network_errors_with_exponential_backoff(self, retrieve, sleep):
+        retrieve.side_effect = [
+            error.URLError(ConnectionResetError('connection reset')),
+            error.URLError(TimeoutError('timed out')),
+            None,
+        ]
+
+        install.download_with_retries('https://example.com/sdk.tar.gz', '/tmp/sdk.tar.gz')
+
+        self.assertEqual(retrieve.call_count, 3)
+        sleep.assert_has_calls([mock.call(1), mock.call(2)])
+
+    @mock.patch('install.time.sleep')
+    @mock.patch('install.request.urlretrieve')
+    def test_retries_transient_http_errors(self, retrieve, sleep):
+        unavailable = error.HTTPError(
+            'https://example.com/sdk.tar.gz', 503, 'Unavailable', {}, None)
+        self.addCleanup(unavailable.close)
+        retrieve.side_effect = [unavailable, None]
+
+        install.download_with_retries('https://example.com/sdk.tar.gz', '/tmp/sdk.tar.gz')
+
+        self.assertEqual(retrieve.call_count, 2)
+        sleep.assert_called_once_with(1)
+
+    @mock.patch('install.time.sleep')
+    @mock.patch('install.request.urlretrieve')
+    def test_does_not_retry_permanent_http_errors(self, retrieve, sleep):
+        not_found = error.HTTPError(
+            'https://example.com/sdk.tar.gz', 404, 'Not Found', {}, None)
+        self.addCleanup(not_found.close)
+        retrieve.side_effect = not_found
+
+        with self.assertRaises(error.HTTPError):
+            install.download_with_retries(
+                'https://example.com/sdk.tar.gz', '/tmp/sdk.tar.gz')
+
+        retrieve.assert_called_once()
+        sleep.assert_not_called()
+
+    @mock.patch('install.time.sleep')
+    @mock.patch('install.request.urlretrieve')
+    def test_raises_after_all_attempts(self, retrieve, sleep):
+        retrieve.side_effect = error.URLError('network unavailable')
+
+        with self.assertRaises(error.URLError):
+            install.download_with_retries(
+                'https://example.com/sdk.tar.gz', '/tmp/sdk.tar.gz')
+
+        self.assertEqual(retrieve.call_count, install.DOWNLOAD_ATTEMPTS)
+        sleep.assert_has_calls([mock.call(1), mock.call(2), mock.call(4)])
 
 
 if __name__ == '__main__':

@@ -22,7 +22,12 @@ import re
 import sys
 import tarfile
 import tempfile
-from urllib import parse, request
+import time
+from urllib import error, parse, request
+
+DOWNLOAD_ATTEMPTS = 4
+DOWNLOAD_BACKOFF_SECONDS = 1
+RETRYABLE_HTTP_STATUS_CODES = frozenset({408, 429, 500, 502, 503, 504})
 
 
 def github_api_request(url: str):
@@ -108,6 +113,29 @@ def verify_download(file_path: str, expected_digest: str, artifact_name: str):
         for chunk in iter(lambda: downloaded.read(1024 * 1024), b''):
             digest.update(chunk)
     validate_digest(digest.hexdigest(), expected_digest, artifact_name)
+
+
+def download_with_retries(url: str, destination: str):
+    """Download a URL, retrying transient failures with exponential backoff."""
+    for attempt in range(1, DOWNLOAD_ATTEMPTS + 1):
+        try:
+            request.urlretrieve(url, destination)
+            return
+        except error.HTTPError as exc:
+            if exc.code not in RETRYABLE_HTTP_STATUS_CODES:
+                raise
+            download_error = exc
+        except (error.URLError, ConnectionError, TimeoutError) as exc:
+            download_error = exc
+
+        if attempt == DOWNLOAD_ATTEMPTS:
+            raise download_error
+
+        delay = DOWNLOAD_BACKOFF_SECONDS * 2 ** (attempt - 1)
+        logging.warning(
+            f'Download attempt {attempt}/{DOWNLOAD_ATTEMPTS} failed: '
+            f'{download_error}. Retrying in {delay} seconds')
+        time.sleep(delay)
 
 
 def validate_digest(actual: str, expected_digest: str, artifact_name: str):
@@ -242,7 +270,7 @@ def install(url: str, install_dir: str, expected_digest: str):
     archive_file = tempfile.NamedTemporaryFile(delete=False)
     archive_file.close()  # Close the handle so Windows can access the file
     try:
-        request.urlretrieve(url, archive_file.name)
+        download_with_retries(url, archive_file.name)
         logging.info(f'Successfully downloaded {archive_file.name}')
 
         artifact_name = url.rsplit('/', 1)[-1]
